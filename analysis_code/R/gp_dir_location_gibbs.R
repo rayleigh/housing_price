@@ -11,6 +11,18 @@ angle <- function(x,y) {
   return(rotation)
 }
 
+matern_kernel_three_halves <- function(x, l) {
+  cov <- as.matrix(dist(x))
+  cov <- sqrt(3) * cov / l
+  (1 + cov) * exp(-cov)
+}
+
+matern_kernel_five_halves <- function(x, l) {
+  cov <- as.matrix(dist(x))
+  cov <- sqrt(5) * cov / l
+  (1 + cov + 1/3 * cov^2) * exp(-cov)
+}
+
 calc_von_mises_prob <- function(y, m_k, kappa_k, log = F) {
   vm_log_prob = kappa_k * cos(y - m_k) - log(2 * pi * besselI(kappa_k, 0))
   if (log) {
@@ -203,10 +215,19 @@ sample_svm <- function(y, x, sigma, l, mean_v, num_iter = 2000,
                        rho_tilde_i_start = NULL,
                        rho_tilde_mu_start = NULL, 
                        calc_pred_prob = F, pred_x = NULL,
-                       pred_y = NULL, gp_dir_model = NULL) {
+                       pred_y = NULL, gp_dir_model = NULL, 
+                       matern_cov = F, v = 5/2) {
   
-  cov <- as.matrix(dist(x))^2
-  cov <- sigma^2 * exp(-cov / (2 * l^2)) + diag(rep(1e-9, nrow(cov)))
+  if (matern_cov) {
+    if (v == 5/2)
+      cov <- matern_kernel_five_halves(x, l)
+    if (v == 3/2)
+      cov <- matern_kernel_three_halves(x, l)
+  } else {
+    cov <- as.matrix(dist(x))^2
+    cov <- sigma^2 * exp(-cov / (2 * l^2))
+  }
+  cov <- cov + diag(rep(1e-9, nrow(cov)))
   cov_chol <- t(chol(cov))
   
 

@@ -1,5 +1,23 @@
 library(LaplacesDemon)
 
+matern_kernel_three_halves <- function(x, l) {
+  cov <- as.matrix(dist(x))
+  cov <- sqrt(3) * cov / l
+  (1 + cov) * exp(-cov)
+}
+
+matern_kernel_five_halves <- function(x, l) {
+  cov <- as.matrix(dist(x))
+  cov <- sqrt(5) * cov / l
+  (1 + cov + 1/3 * cov^2) * exp(-cov)
+}
+
+matern_kernel_one_half <- function(x, l) {
+  cov <- as.matrix(dist(x))
+  exp(-cov / l)
+}
+
+
 angle <- function(x,y) {
   rotation = atan(y / x)
   if (x < 0) {
@@ -172,9 +190,18 @@ update_mu_tilde_p_k <- function(tilde_p_k_m, r_k_m) {
 #1e-6 for 2 components
 #1e-7 for 3 components
 #
-get_em_hot_start <- function(y, x, mu_z_k, sigma, l, K, mu_tilde_p_k = rep(0, K)) {
-  cov <- as.matrix(dist(x))^2
-  cov <- sigma^2 * exp(-cov / (2 * l^2)) + diag(rep(1e-9, nrow(cov)))
+get_em_hot_start <- function(y, x, mu_z_k, sigma, l, K, mu_tilde_p_k = rep(0, K),
+                             matern_cov = F, v = 5/2) {
+    if (matern_cov) {
+      if (v == 5/2)
+        cov <- matern_kernel_five_halves(x, l)
+      if (v == 3/2)
+        cov <- matern_kernel_three_halves(x, l)
+    } else {
+      cov <- as.matrix(dist(x))^2
+      cov <- sigma^2 * exp(-cov / (2 * l^2)) + diag(rep(1e-9, nrow(cov)))
+    }
+  cov <- cov + diag(rep(1e-9, nrow(cov)))
   cov_chol <- t(chol(cov))
   
   next_p <- rep(1 / K, K)
@@ -382,9 +409,18 @@ sort_results <- function(p_k_m, tilde_z_k_m, m_list, kappa_list, ll) {
   return(list(p_k_m, tilde_z_k_m[, 1:(ncol(p_k_m) - 1)], m_list, kappa_list, ll))
 }
 
-get_em_hot_start_gp_mixture_prob <- function(y, x, sigma, l, K) {
-  cov <- as.matrix(dist(x))^2
-  cov <- sigma^2 * exp(-cov / (2 * l^2)) + diag(rep(1e-9, nrow(cov)))
+get_em_hot_start_gp_mixture_prob <- function(y, x, sigma, l, K, matern_cov = F, v = 5/2) {
+  
+  if (matern_cov) {
+    if (v == 5/2)
+      cov <- matern_kernel_five_halves(x, l)
+    if (v == 3/2)
+      cov <- matern_kernel_three_halves(x, l)
+  } else {
+    cov <- as.matrix(dist(x))^2
+    cov <- sigma^2 * exp(-cov / (2 * l^2))
+  }
+  cov <- cov + diag(rep(1e-9, nrow(cov)))
   cov_chol <- t(chol(cov))
   
   next_tilde_z_k_m <- matrix(0, nrow = length(y), ncol = K - 1)
@@ -538,5 +574,20 @@ get_em_hot_start_ind_mixture <- function(y, x, K) {
   sorted_order <- order(prev_m_list)
   return(list(prev_p_k_m[sorted_order], prev_m_list[sorted_order], 
               prev_kappa_list[sorted_order], prev_ll))
+}
+
+
+two_sums <- function(nums, target) {
+  ind_diff_list <- list() 
+  target_ind_pair <- c()
+  for (i in 1:length(nums)) {
+    for (pair in ind_diff_list) {
+      if (nums[i] == pair[2]) {
+        target_ind_pair = c(pair[1], i)
+        break
+      }
+    }
+    ind_diff_list <- c(ind_diff_list, list(c(i, target - nums[i])))
+  }
 }
 
